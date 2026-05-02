@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* WMS 企业蓝设计系统 - 所有颜色均为 HSL */
+@layer base {
+  :root {
+    --background: 210 25% 98%;
+    --foreground: 215 28% 17%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 28% 17%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 28% 17%;
+
+    /* 主品牌色：企业蓝 */
+    --primary: 214 88% 38%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 214 88% 32%;
+    --primary-soft: 214 88% 95%;
+
+    --secondary: 215 16% 95%;
+    --secondary-foreground: 215 28% 17%;
+
+    --muted: 215 16% 95%;
+    --muted-foreground: 215 14% 45%;
+
+    --accent: 214 88% 95%;
+    --accent-foreground: 214 88% 38%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 38%;
+    --success-foreground: 0 0% 100%;
+    --success-soft: 142 71% 94%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-soft: 38 92% 94%;
+
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+    --info-soft: 199 89% 94%;
+
+    --border: 215 20% 90%;
+    --input: 215 20% 90%;
+    --ring: 214 88% 38%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar - 深色专业版 */
+    --sidebar-background: 215 35% 14%;
+    --sidebar-foreground: 215 20% 78%;
+    --sidebar-primary: 214 88% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 30% 20%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 215 30% 20%;
+    --sidebar-ring: 214 88% 55%;
+
+    /* 渐变 / 阴影 */
+    --gradient-primary: linear-gradient(135deg, hsl(214 88% 38%), hsl(199 89% 48%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 25% 98%));
+    --shadow-sm: 0 1px 2px 0 hsl(215 28% 17% / 0.05);
+    --shadow-md: 0 4px 12px -2px hsl(215 28% 17% / 0.08);
+    --shadow-lg: 0 10px 30px -10px hsl(214 88% 38% / 0.2);
+    --shadow-card: 0 1px 3px 0 hsl(215 28% 17% / 0.06), 0 1px 2px 0 hsl(215 28% 17% / 0.04);
+
+    --transition-base: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 215 30% 10%;
+    --foreground: 210 25% 96%;
+    --card: 215 30% 13%;
+    --card-foreground: 210 25% 96%;
+    --popover: 215 30% 13%;
+    --popover-foreground: 210 25% 96%;
+    --primary: 214 88% 58%;
+    --primary-foreground: 215 30% 10%;
+    --secondary: 215 25% 18%;
+    --secondary-foreground: 210 25% 96%;
+    --muted: 215 25% 18%;
+    --muted-foreground: 215 14% 65%;
+    --accent: 215 25% 22%;
+    --accent-foreground: 214 88% 70%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 215 25% 22%;
+    --input: 215 25% 22%;
+    --ring: 214 88% 58%;
+    --sidebar-background: 215 35% 8%;
+    --sidebar-foreground: 215 20% 78%;
+    --sidebar-primary: 214 88% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 30% 14%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 215 30% 14%;
+    --sidebar-ring: 214 88% 58%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { @apply tracking-tight; }
+}
+
+@layer components {
+  .page-container { @apply p-6 space-y-4; }
+  .page-header { @apply flex items-center justify-between mb-2; }
+  .page-title { @apply text-2xl font-semibold text-foreground; }
+  .page-subtitle { @apply text-sm text-muted-foreground mt-1; }
+  .panel {
+    @apply bg-card rounded-lg border border-border p-5;
+    box-shadow: var(--shadow-card);
+  }
+  .stat-card {
+    @apply bg-card rounded-lg border border-border p-5 transition-all;
+    box-shadow: var(--shadow-card);
+  }
+  .stat-card:hover { box-shadow: var(--shadow-md); }
+}
