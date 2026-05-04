@@ -1,0 +1,42 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositories {
+        mavenCentral()
+    }
+}
+
+rootProject.name = "hof-wms-backend"
+
+include "common-core"
+include "common-db"
+include "common-web"
+include "gateway-service"
+include "auth-service"
+include "master-data-service"
+include "inbound-service"
+include "outbound-service"
+include "inventory-service"
+include "integration-service"
+include "report-service"
+include "ai-service"
+
+project(":common-core").projectDir = file("common/common-core")
+project(":common-db").projectDir = file("common/common-db")
+project(":common-web").projectDir = file("common/common-web")
+
+project(":gateway-service").projectDir = file("services/gateway-service")
+project(":auth-service").projectDir = file("services/auth-service")
+project(":master-data-service").projectDir = file("services/master-data-service")
+project(":inbound-service").projectDir = file("services/inbound-service")
+project(":outbound-service").projectDir = file("services/outbound-service")
+project(":inventory-service").projectDir = file("services/inventory-service")
+project(":integration-service").projectDir = file("services/integration-service")
+project(":report-service").projectDir = file("services/report-service")
+project(":ai-service").projectDir = file("services/ai-service")

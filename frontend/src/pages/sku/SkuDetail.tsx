@@ -8,9 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, Save, Package, ImagePlus } from "lucide-react";
-import { mockSkus } from "@/mock/sku";
 import type { SkuItem } from "@/types/sku";
 import { toast } from "sonner";
+import { skuApi } from "@/api/sku";
 
 const empty: SkuItem = {
   id: "", skuCode: "", skuName: "", category: "3C数码", brand: "", unit: "件",
@@ -25,18 +25,26 @@ export default function SkuDetail() {
   const navigate = useNavigate();
   const isCreate = !id;
   const [editing, setEditing] = useState(isCreate || search.get("edit") === "1");
-  const initial = useMemo(() => id ? mockSkus.find(x => x.id === id) ?? empty : empty, [id]);
+  const initial = useMemo(() => empty, []);
   const [form, setForm] = useState<SkuItem>(initial);
 
-  useEffect(() => { setForm(initial); }, [initial]);
+  useEffect(() => {
+    if (!id) {
+      setForm(empty);
+      return;
+    }
+    skuApi.detail(id).then(setForm).catch(() => undefined);
+  }, [id]);
 
   const set = <K extends keyof SkuItem>(k: K, v: SkuItem[K]) => setForm(p => ({ ...p, [k]: v }));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.skuCode || !form.skuName) {
       toast.error("商品编码和名称为必填项");
       return;
     }
+    if (isCreate) await skuApi.create(form);
+    else await skuApi.update(form.id, form);
     toast.success(isCreate ? "商品创建成功" : "商品已更新");
     navigate("/sku/list");
   };

@@ -9,6 +9,7 @@ import { Plus, Trash2, Save, Send } from "lucide-react";
 import type { StockCheckItem } from "@/types/inventory";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { inventoryApi } from "@/api/inventory";
 
 export default function InventoryCheck() {
   const [code] = useState(`PD${Date.now()}`);
@@ -77,8 +78,8 @@ export default function InventoryCheck() {
         </Table>
       </div>
       <div className="panel flex items-center justify-end gap-2">
-        <Button variant="outline" onClick={() => toast.success("已保存")} className="gap-1.5"><Save className="h-4 w-4" />保存</Button>
-        <Button onClick={() => toast.success("盘点已提交")} className="gap-1.5"><Send className="h-4 w-4" />提交盘点</Button>
+        <Button variant="outline" onClick={async () => { await inventoryApi.checkSave({ code, warehouse, checkDate: date, items, status: "draft" }); toast.success("已保存"); }} className="gap-1.5"><Save className="h-4 w-4" />保存</Button>
+        <Button onClick={async () => { const saved = await inventoryApi.checkSave({ code, warehouse, checkDate: date, items, status: "draft" }); await inventoryApi.checkSubmit(saved.id); toast.success("盘点已提交"); }} className="gap-1.5"><Send className="h-4 w-4" />提交盘点</Button>
       </div>
     </div>
   );

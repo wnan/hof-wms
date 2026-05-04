@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Trash2, ArrowLeft, Save, Send, Check, X, Truck } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
-import { mockOutbound } from "@/mock/data";
 import type { OutboundItem, OutboundOrder } from "@/types/outbound";
 import { toast } from "sonner";
+import { outboundApi } from "@/api/outbound";
 
 export default function OutboundDetail() {
   const { id } = useParams();
@@ -19,9 +19,12 @@ export default function OutboundDetail() {
   const isNew = !id || id === "new";
   const initial = useMemo<OutboundOrder>(() => {
     if (isNew) return { id: "", code: `CK${Date.now()}`, customer: "", type: "sale", status: "draft", remark: "", items: [], createdAt: new Date().toISOString().slice(0, 10), totalAmount: 0 };
-    return mockOutbound.find(x => x.id === id) ?? mockOutbound[0];
+    return { id: "", code: "", customer: "", type: "sale", status: "draft", remark: "", items: [], createdAt: "", totalAmount: 0 };
   }, [id, isNew]);
   const [form, setForm] = useState<OutboundOrder>(initial);
+  useEffect(() => {
+    if (!isNew && id) outboundApi.detail(id).then(setForm).catch(() => undefined);
+  }, [id, isNew]);
   const total = form.items.reduce((s, x) => s + x.subtotal, 0);
 
   const update = <K extends keyof OutboundOrder>(k: K, v: OutboundOrder[K]) => setForm(p => ({ ...p, [k]: v }));
@@ -90,13 +93,13 @@ export default function OutboundDetail() {
       </div>
 
       <div className="panel flex items-center justify-end gap-2">
-        <Button variant="outline" onClick={() => toast.success("草稿已保存")} className="gap-1.5"><Save className="h-4 w-4" />保存草稿</Button>
-        <Button variant="outline" onClick={() => toast.success("已提交审核")} className="gap-1.5"><Send className="h-4 w-4" />提交审核</Button>
+        <Button variant="outline" onClick={async () => { const saved = await outboundApi.save({ ...form, totalAmount: total }); setForm(saved); toast.success("草稿已保存"); }} className="gap-1.5"><Save className="h-4 w-4" />保存草稿</Button>
+        <Button variant="outline" onClick={async () => { const saved = await outboundApi.save({ ...form, totalAmount: total }); await outboundApi.submit(saved.id); setForm({ ...saved, status: "pending" }); toast.success("已提交审核"); }} className="gap-1.5"><Send className="h-4 w-4" />提交审核</Button>
         {form.status === "pending" && (<>
-          <Button variant="outline" onClick={() => toast.error("已驳回")} className="gap-1.5"><X className="h-4 w-4" />审核驳回</Button>
-          <Button onClick={() => toast.success("审核通过")} className="gap-1.5"><Check className="h-4 w-4" />审核通过</Button>
+          <Button variant="outline" onClick={async () => { await outboundApi.approve(form.id, false); setForm({ ...form, status: "draft" }); toast.error("已驳回"); }} className="gap-1.5"><X className="h-4 w-4" />审核驳回</Button>
+          <Button onClick={async () => { await outboundApi.approve(form.id, true); setForm({ ...form, status: "approved" }); toast.success("审核通过"); }} className="gap-1.5"><Check className="h-4 w-4" />审核通过</Button>
         </>)}
-        {form.status === "approved" && <Button onClick={() => toast.success("出库已确认")} className="gap-1.5"><Truck className="h-4 w-4" />出库确认</Button>}
+        {form.status === "approved" && <Button onClick={async () => { await outboundApi.confirm(form.id); setForm({ ...form, status: "shipped" }); toast.success("出库已确认"); }} className="gap-1.5"><Truck className="h-4 w-4" />出库确认</Button>}
       </div>
     </div>
   );

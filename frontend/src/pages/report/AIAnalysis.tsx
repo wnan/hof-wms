@@ -4,16 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkles, Send, Bot, User, TrendingUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
+import { reportApi } from "@/api/report";
 
 interface Message { role: "user" | "assistant"; content: string; }
 
 const presets = ["分析最近30天的销售趋势", "预测下月各仓库的库存需求", "找出周转最慢的10个SKU", "对比各仓库的吞吐效率"];
-
-const prediction = Array.from({ length: 12 }, (_, i) => ({
-  月份: `第${i + 1}周`,
-  实际: i < 8 ? 800 + ((i * 47) % 200) : 0,
-  预测: 820 + ((i * 51) % 220),
-}));
 
 export default function AIAnalysis() {
   const [messages, setMessages] = useState<Message[]>([
@@ -21,19 +16,33 @@ export default function AIAnalysis() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [prediction, setPrediction] = useState(Array.from({ length: 12 }, (_, i) => ({
+    月份: `第${i + 1}周`,
+    实际: i < 8 ? 800 + ((i * 47) % 200) : 0,
+    预测: 820 + ((i * 51) % 220),
+  })));
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [messages]);
 
-  const send = (text?: string) => {
+  const send = async (text?: string) => {
     const content = (text ?? input).trim();
     if (!content) return;
     setMessages(m => [...m, { role: "user", content }]);
     setInput("");
     setLoading(true);
-    setTimeout(() => {
-      setMessages(m => [...m, { role: "assistant", content: `根据您的问题"${content}"，分析结果如下：\n\n📊 近期数据呈现稳定上升趋势，平均增幅 12.5%。\n📈 预测下周需求将达到 1240 单，建议提前补货热销 SKU。\n⚠️ 识别到 3 个 SKU 出现异常波动，建议进一步排查。\n\n详细图表已在右侧展示。` }]);
+    try {
+      const result = await reportApi.aiAnalyze(content);
+      setMessages(m => [...m, { role: "assistant", content: result.answer }]);
+      if (result.chart?.length) {
+        setPrediction(result.chart.map((item, i) => ({
+          月份: item.name,
+          实际: i < result.chart.length - 3 ? item.value - 30 : 0,
+          预测: item.value,
+        })));
+      }
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   return (

@@ -1,14 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { SearchBar, type SearchField } from "@/components/SearchBar";
 import { TablePro, type ColumnConfig } from "@/components/TablePro";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Plus, Play } from "lucide-react";
-import { mockSyncTasks, paginate } from "@/mock/data";
+import { Plus } from "lucide-react";
 import type { SyncTask } from "@/types/data-sync";
 import { toast } from "sonner";
+import { dataSyncApi } from "@/api/data-sync";
 
 const fields: SearchField[] = [
   { name: "name", label: "任务名称", type: "input" },
@@ -24,13 +24,10 @@ export default function DataSyncList() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [query, setQuery] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
-  const filtered = useMemo(() => mockSyncTasks.filter(t => {
-    if (query.name && !t.name.includes(query.name)) return false;
-    if (query.externalSystem && !t.externalSystem.includes(query.externalSystem)) return false;
-    if (query.status && t.status !== query.status) return false;
-    return true;
-  }), [query]);
-  const data = paginate(filtered, page, 10);
+  const [data, setData] = useState<{ records: SyncTask[]; total: number; current: number; size: number }>({ records: [], total: 0, current: 1, size: 10 });
+  useEffect(() => {
+    dataSyncApi.list({ current: page, size: 10, ...query }).then(setData).catch(() => undefined);
+  }, [page, query]);
 
   const columns: ColumnConfig<SyncTask>[] = [
     { key: "name", title: "任务名称", render: r => <span className="font-medium">{r.name}</span> },
@@ -48,7 +45,7 @@ export default function DataSyncList() {
       <TablePro columns={columns} data={data.records} rowKey={r => r.id}
         pagination={{ current: data.current, size: data.size, total: data.total, onChange: setPage }}
         actions={[
-          { label: "执行", variant: "ghost", onClick: () => toast.success("已触发执行") },
+          { label: "执行", variant: "ghost", onClick: async r => { await dataSyncApi.execute(r.id); toast.success("已触发执行"); } },
           { label: "配置", onClick: r => nav(`/data-sync/config/${r.id}`) },
           { label: "日志", variant: "ghost", onClick: () => nav("/data-sync/log") },
         ]}

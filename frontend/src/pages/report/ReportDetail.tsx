@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -9,15 +9,9 @@ import { ExportButton } from "@/components/ExportButton";
 import { TablePro, type ColumnConfig } from "@/components/TablePro";
 import { ArrowLeft } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { reportApi } from "@/api/report";
 
-const data = Array.from({ length: 12 }, (_, i) => ({ 月份: `${i + 1}月`, 入库: 200 + ((i * 41) % 200), 出库: 150 + ((i * 53) % 220), 库存: 800 + ((i * 71) % 300) }));
-type Row = { id: string; 仓库: string; 入库金额: number; 出库金额: number; 库存金额: number };
-const tableData: Row[] = [
-  { id: "1", 仓库: "上海中心仓", 入库金额: 1280000, 出库金额: 980000, 库存金额: 3200000 },
-  { id: "2", 仓库: "广州前置仓", 入库金额: 860000, 出库金额: 720000, 库存金额: 2100000 },
-  { id: "3", 仓库: "成都分拣仓", 入库金额: 540000, 出库金额: 460000, 库存金额: 1380000 },
-  { id: "4", 仓库: "北京旗舰仓", 入库金额: 720000, 出库金额: 610000, 库存金额: 1820000 },
-];
+type Row = { id: string; warehouse: string; inboundAmount: number; outboundAmount: number; inventoryAmount: number };
 
 export default function ReportDetail() {
   const { type } = useParams();
@@ -25,12 +19,27 @@ export default function ReportDetail() {
   const [start, setStart] = useState("2026-01-01");
   const [end, setEnd] = useState("2026-04-29");
   const [warehouse, setWarehouse] = useState("__all__");
+  const [chartData, setChartData] = useState<Array<{ 月份: string; 入库: number; 出库: number; 库存: number }>>([]);
+  const [tableData, setTableData] = useState<Row[]>([]);
+
+  const load = () => {
+    if (!type) return;
+    reportApi.detail(type, { startDate: start, endDate: end, warehouse }).then((res) => {
+      const trend = ((res as unknown as { trend?: Array<{ month: string; inbound: number; outbound: number; inventory: number }> }).trend) ?? [];
+      setChartData(trend.map((item) => ({ 月份: item.month, 入库: item.inbound, 出库: item.outbound, 库存: item.inventory })));
+      setTableData((res.table as Row[]) ?? []);
+    }).catch(() => undefined);
+  };
+
+  useEffect(() => {
+    load();
+  }, [type]);
 
   const cols: ColumnConfig<Row>[] = [
-    { key: "仓库", title: "仓库" },
-    { key: "入库金额", title: "入库金额", align: "right", render: r => `¥${r.入库金额.toLocaleString()}` },
-    { key: "出库金额", title: "出库金额", align: "right", render: r => `¥${r.出库金额.toLocaleString()}` },
-    { key: "库存金额", title: "库存金额", align: "right", render: r => `¥${r.库存金额.toLocaleString()}` },
+    { key: "warehouse", title: "仓库" },
+    { key: "inboundAmount", title: "入库金额", align: "right", render: r => `¥${r.inboundAmount.toLocaleString()}` },
+    { key: "outboundAmount", title: "出库金额", align: "right", render: r => `¥${r.outboundAmount.toLocaleString()}` },
+    { key: "inventoryAmount", title: "库存金额", align: "right", render: r => `¥${r.inventoryAmount.toLocaleString()}` },
   ];
 
   return (
@@ -52,7 +61,7 @@ export default function ReportDetail() {
               </SelectContent>
             </Select>
           </div>
-          <Button>查询</Button>
+          <Button onClick={load}>查询</Button>
         </div>
       </div>
 
@@ -60,7 +69,7 @@ export default function ReportDetail() {
         <div className="panel">
           <h3 className="font-semibold mb-4">出入库趋势</h3>
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={data}>
+            <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="月份" stroke="hsl(var(--muted-foreground))" fontSize={12} />
               <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
@@ -74,7 +83,7 @@ export default function ReportDetail() {
         <div className="panel">
           <h3 className="font-semibold mb-4">库存走势</h3>
           <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={data}>
+            <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="月份" stroke="hsl(var(--muted-foreground))" fontSize={12} />
               <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />

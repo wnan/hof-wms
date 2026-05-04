@@ -22,7 +22,7 @@ flowchart LR
 
 | 编号 | 任务 | 说明 |
 |------|------|------|
-| BE-001 | 创建父工程和公共模块 | 搭建 Maven 多模块工程, 创建 common-core, common-db, common-web |
+| BE-001 | 创建父工程和公共模块 | 搭建 Gradle 多模块工程, 创建 common-core, common-db, common-web |
 | BE-002 | 搭建 gateway-service | Spring Cloud Gateway 配置, 路由转发, 统一鉴权过滤器 |
 | BE-003 | 搭建 auth-service | JWT 登录认证, Token 签发与刷新, 用户表设计 |
 | BE-004 | 统一响应封装 | ApiResult, PageResult, 全局异常处理器, 参数校验 |

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { SearchBar, type SearchField } from "@/components/SearchBar";
 import { TablePro, type ColumnConfig } from "@/components/TablePro";
@@ -12,9 +12,9 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, KeyRound } from "lucide-react";
-import { mockUsers, mockRoles } from "@/mock/rbac";
-import type { SysUser } from "@/types/rbac";
+import type { SysRole, SysUser } from "@/types/rbac";
 import { toast } from "sonner";
+import { roleApi, userApi } from "@/api/rbac";
 
 const fields: SearchField[] = [
   { name: "username", label: "用户名", type: "input" },
@@ -28,45 +28,49 @@ const fields: SearchField[] = [
   ] },
 ];
 
-function paginate<T>(rows: T[], current: number, size: number) {
-  const start = (current - 1) * size;
-  return { records: rows.slice(start, start + size), total: rows.length, current, size };
-}
-
 const empty: Partial<SysUser> = { username: "", realName: "", email: "", phone: "", department: "技术部", roleIds: [], status: "active" };
 
 export default function UserManage() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [query, setQuery] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
-  const [users, setUsers] = useState<SysUser[]>(mockUsers);
+  const [users, setUsers] = useState<SysUser[]>([]);
+  const [roles, setRoles] = useState<SysRole[]>([]);
   const [editing, setEditing] = useState<Partial<SysUser> | null>(null);
-
-  const filtered = useMemo(() => users.filter(u => {
-    if (query.username && !u.username.includes(query.username)) return false;
-    if (query.realName && !u.realName.includes(query.realName)) return false;
-    if (query.department && u.department !== query.department) return false;
-    if (query.status && u.status !== query.status) return false;
-    return true;
-  }), [query, users]);
-  const data = paginate(filtered, page, 10);
+  const [data, setData] = useState<{ records: SysUser[]; total: number; current: number; size: number }>({ records: [], total: 0, current: 1, size: 10 });
+  useEffect(() => {
+    userApi.list({ current: page, size: 10, ...query }).then((res) => {
+      setData(res);
+      setUsers(res.records);
+    }).catch(() => undefined);
+  }, [page, query]);
+  useEffect(() => {
+    roleApi.list({ current: 1, size: 100 }).then((res) => setRoles(res.records)).catch(() => undefined);
+  }, []);
 
   const toggleStatus = (u: SysUser) => {
-    setUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: x.status === "active" ? "disabled" : "active" } : x));
-    toast.success(`已${u.status === "active" ? "禁用" : "启用"}用户 ${u.realName}`);
+    const status = u.status === "active" ? "disabled" : "active";
+    userApi.setStatus(u.id, status).then(() => {
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, status } : x));
+      setData((prev) => ({ ...prev, records: prev.records.map(x => x.id === u.id ? { ...x, status } : x) }));
+      toast.success(`已${u.status === "active" ? "禁用" : "启用"}用户 ${u.realName}`);
+    });
   };
 
   const save = () => {
     if (!editing?.username || !editing?.realName) { toast.error("请填写用户名与姓名"); return; }
-    if (editing.id) {
-      setUsers(prev => prev.map(x => x.id === editing.id ? { ...x, ...editing } as SysUser : x));
-      toast.success("已更新");
-    } else {
-      const id = `u${Date.now()}`;
-      setUsers(prev => [{ ...empty, ...editing, id, createdAt: new Date().toISOString().slice(0, 19).replace("T", " ") } as SysUser, ...prev]);
-      toast.success("已新增");
-    }
-    setEditing(null);
+    userApi.save(editing).then((saved) => {
+      if (editing.id) {
+        setUsers(prev => prev.map(x => x.id === editing.id ? saved : x));
+        setData((prev) => ({ ...prev, records: prev.records.map(x => x.id === editing.id ? saved : x) }));
+        toast.success("已更新");
+      } else {
+        setUsers(prev => [saved, ...prev]);
+        setData((prev) => ({ ...prev, records: [saved, ...prev.records], total: prev.total + 1 }));
+        toast.success("已新增");
+      }
+      setEditing(null);
+    });
   };
 
   const columns: ColumnConfig<SysUser>[] = [
@@ -83,8 +87,8 @@ export default function UserManage() {
     { key: "email", title: "联系方式", render: r => (<div className="text-xs leading-relaxed"><div>{r.email}</div><div className="text-muted-foreground">{r.phone}</div></div>) },
     { key: "roleIds", title: "角色", render: r => (
       <div className="flex flex-wrap gap-1">
-        {r.roleIds.map(id => {
-          const role = mockRoles.find(x => x.id === id);
+        {(r.roleIds || []).map(id => {
+          const role = roles.find(x => x.id === id);
           return <Badge key={id} variant="outline" className="bg-accent text-accent-foreground border-transparent">{role?.name ?? id}</Badge>;
         })}
       </div>
@@ -107,8 +111,8 @@ export default function UserManage() {
         pagination={{ current: data.current, size: data.size, total: data.total, onChange: setPage }}
         actions={[
           { label: "编辑", onClick: r => setEditing(r) },
-          { label: "重置密码", variant: "ghost", onClick: r => toast.success(`已为 ${r.realName} 重置密码：Wms@2026`) },
-          { label: "删除", onClick: r => { setUsers(prev => prev.filter(x => x.id !== r.id)); toast.success("已删除"); } },
+          { label: "重置密码", variant: "ghost", onClick: async r => { await userApi.resetPwd(r.id); toast.success(`已为 ${r.realName} 重置密码：Wms@2026`); } },
+          { label: "删除", onClick: async r => { await userApi.remove(r.id); setUsers(prev => prev.filter(x => x.id !== r.id)); setData((prev) => ({ ...prev, records: prev.records.filter(x => x.id !== r.id), total: Math.max(0, prev.total - 1) })); toast.success("已删除"); } },
         ]}
       />
 
@@ -140,7 +144,7 @@ export default function UserManage() {
               <div className="col-span-2 space-y-1.5">
                 <Label>分配角色（可多选）</Label>
                 <div className="flex flex-wrap gap-2 p-3 rounded-md border border-border bg-muted/30 min-h-[60px]">
-                  {mockRoles.map(role => {
+                  {roles.map(role => {
                     const checked = (editing.roleIds ?? []).includes(role.id);
                     return (
                       <button key={role.id} type="button"

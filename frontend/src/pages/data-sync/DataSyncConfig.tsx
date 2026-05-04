@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Plus, Trash2, Save, Play, Plug } from "lucide-react";
-import { mockSyncTasks } from "@/mock/data";
 import type { FieldMapping, SyncTask } from "@/types/data-sync";
 import { toast } from "sonner";
+import { dataSyncApi } from "@/api/data-sync";
 
 export default function DataSyncConfig() {
   const { id } = useParams();
@@ -17,8 +17,11 @@ export default function DataSyncConfig() {
   const isNew = !id || id === "new";
   const init = useMemo<SyncTask>(() => isNew
     ? { id: "", name: "", externalSystem: "", endpoint: "", authType: "bearer", syncType: "incremental", triggerType: "schedule", cron: "0 0 * * * ?", mappings: [], status: "idle" }
-    : (mockSyncTasks.find(x => x.id === id) ?? mockSyncTasks[0]), [id, isNew]);
+    : { id: "", name: "", externalSystem: "", endpoint: "", authType: "bearer", syncType: "incremental", triggerType: "schedule", cron: "0 0 * * * ?", mappings: [], status: "idle" }, [id, isNew]);
   const [form, setForm] = useState<SyncTask>(init);
+  useEffect(() => {
+    if (!isNew && id) dataSyncApi.detail(id).then(setForm).catch(() => undefined);
+  }, [id, isNew]);
   const set = <K extends keyof SyncTask>(k: K, v: SyncTask[K]) => setForm(p => ({ ...p, [k]: v }));
   const setMap = (i: number, patch: Partial<FieldMapping>) => {
     const next = [...form.mappings]; next[i] = { ...next[i], ...patch }; set("mappings", next);
@@ -97,9 +100,9 @@ export default function DataSyncConfig() {
       </div>
 
       <div className="panel flex items-center justify-end gap-2">
-        <Button variant="outline" onClick={() => toast.success("连接成功")} className="gap-1.5"><Plug className="h-4 w-4" />测试连接</Button>
-        <Button variant="outline" onClick={() => toast.success("已触发执行")} className="gap-1.5"><Play className="h-4 w-4" />手动执行</Button>
-        <Button onClick={() => toast.success("已保存")} className="gap-1.5"><Save className="h-4 w-4" />保存</Button>
+        <Button variant="outline" onClick={async () => { const saved = await dataSyncApi.save(form); await dataSyncApi.test(saved.id); setForm(saved); toast.success("连接成功"); }} className="gap-1.5"><Plug className="h-4 w-4" />测试连接</Button>
+        <Button variant="outline" onClick={async () => { const saved = await dataSyncApi.save(form); await dataSyncApi.execute(saved.id); setForm(saved); toast.success("已触发执行"); }} className="gap-1.5"><Play className="h-4 w-4" />手动执行</Button>
+        <Button onClick={async () => { const saved = await dataSyncApi.save(form); setForm(saved); toast.success("已保存"); }} className="gap-1.5"><Save className="h-4 w-4" />保存</Button>
       </div>
     </div>
   );

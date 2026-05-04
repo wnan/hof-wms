@@ -1,16 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ChevronRight, ChevronDown, Plus, Edit2, Trash2, FolderTree } from "lucide-react";
-import { mockCategories } from "@/mock/sku";
 import type { SkuCategory } from "@/types/sku";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { skuCategoryApi } from "@/api/sku";
 
 interface FlatRow { node: SkuCategory; depth: number; }
 
@@ -26,12 +26,16 @@ function flatten(list: SkuCategory[], expanded: Set<string>, depth = 0): FlatRow
 }
 
 export default function SkuCategoryManage() {
-  const [tree, setTree] = useState<SkuCategory[]>(mockCategories);
+  const [tree, setTree] = useState<SkuCategory[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(["C1", "C2", "C3"]));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SkuCategory | null>(null);
   const [parentId, setParentId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", sort: 1 });
+
+  useEffect(() => {
+    skuCategoryApi.tree().then(setTree).catch(() => undefined);
+  }, []);
 
   const toggle = (id: string) => {
     const next = new Set(expanded);
@@ -53,37 +57,40 @@ export default function SkuCategoryManage() {
   const save = () => {
     if (!form.name.trim()) { toast.error("请输入分类名称"); return; }
     if (editing) {
-      const update = (list: SkuCategory[]): SkuCategory[] => list.map(n =>
-        n.id === editing.id ? { ...n, name: form.name, sort: form.sort } :
-        n.children ? { ...n, children: update(n.children) } : n
-      );
-      setTree(update(tree));
-      toast.success("分类已更新");
-    } else {
-      const newNode: SkuCategory = {
-        id: `C${Date.now()}`, name: form.name, parentId, sort: form.sort,
-      };
-      if (parentId === null) {
-        setTree([...tree, newNode]);
-      } else {
-        const insert = (list: SkuCategory[]): SkuCategory[] => list.map(n =>
-          n.id === parentId
-            ? { ...n, children: [...(n.children ?? []), newNode] }
-            : n.children ? { ...n, children: insert(n.children) } : n
+      skuCategoryApi.update(editing.id, { name: form.name, sort: form.sort }).then(() => {
+        const update = (list: SkuCategory[]): SkuCategory[] => list.map(n =>
+          n.id === editing.id ? { ...n, name: form.name, sort: form.sort } :
+          n.children ? { ...n, children: update(n.children) } : n
         );
-        setTree(insert(tree));
-        setExpanded(new Set([...expanded, parentId]));
-      }
-      toast.success("分类已创建");
+        setTree(update(tree));
+        toast.success("分类已更新");
+      });
+    } else {
+      skuCategoryApi.create({ name: form.name, parentId, sort: form.sort }).then((newNode) => {
+        if (parentId === null) {
+          setTree([...tree, newNode]);
+        } else {
+          const insert = (list: SkuCategory[]): SkuCategory[] => list.map(n =>
+            n.id === parentId
+              ? { ...n, children: [...(n.children ?? []), newNode] }
+              : n.children ? { ...n, children: insert(n.children) } : n
+          );
+          setTree(insert(tree));
+          setExpanded(new Set([...expanded, parentId]));
+        }
+        toast.success("分类已创建");
+      });
     }
     setDialogOpen(false);
   };
 
   const remove = (id: string) => {
-    const del = (list: SkuCategory[]): SkuCategory[] =>
-      list.filter(n => n.id !== id).map(n => n.children ? { ...n, children: del(n.children) } : n);
-    setTree(del(tree));
-    toast.success("分类已删除");
+    skuCategoryApi.remove(id).then(() => {
+      const del = (list: SkuCategory[]): SkuCategory[] =>
+        list.filter(n => n.id !== id).map(n => n.children ? { ...n, children: del(n.children) } : n);
+      setTree(del(tree));
+      toast.success("分类已删除");
+    });
   };
 
   const rows = flatten(tree, expanded);

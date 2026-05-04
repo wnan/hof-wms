@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { TablePro, type ColumnConfig } from "@/components/TablePro";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -10,15 +10,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Plus, ShieldCheck, ChevronRight } from "lucide-react";
-import { mockRoles, mockPermissions } from "@/mock/rbac";
 import type { SysRole, SysPermission } from "@/types/rbac";
 import { toast } from "sonner";
+import { permissionApi, roleApi } from "@/api/rbac";
 
 function flatten(nodes: SysPermission[]): SysPermission[] {
   return nodes.flatMap(n => [n, ...(n.children ? flatten(n.children) : [])]);
 }
-const allPermissionIds = flatten(mockPermissions).map(p => p.id);
-
 function PermissionTree({ nodes, checked, onChange, level = 0 }: {
   nodes: SysPermission[]; checked: Set<string>; onChange: (s: Set<string>) => void; level?: number;
 }) {
@@ -65,10 +63,16 @@ function PermissionTree({ nodes, checked, onChange, level = 0 }: {
 const empty: Partial<SysRole> = { code: "", name: "", description: "", permissionIds: [], status: "active" };
 
 export default function RoleManage() {
-  const [roles, setRoles] = useState<SysRole[]>(mockRoles);
+  const [roles, setRoles] = useState<SysRole[]>([]);
+  const [permissions, setPermissions] = useState<SysPermission[]>([]);
   const [editing, setEditing] = useState<Partial<SysRole> | null>(null);
   const [assigning, setAssigning] = useState<SysRole | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
+  const allPermissionIds = useMemo(() => flatten(permissions).map(p => p.id), [permissions]);
+  useEffect(() => {
+    roleApi.list({ current: 1, size: 100 }).then((res) => setRoles(res.records)).catch(() => undefined);
+    permissionApi.tree().then(setPermissions).catch(() => undefined);
+  }, []);
 
   const columns: ColumnConfig<SysRole>[] = [
     { key: "name", title: "角色名称", render: r => (
@@ -79,30 +83,31 @@ export default function RoleManage() {
     ) },
     { key: "description", title: "描述", render: r => <span className="text-sm text-muted-foreground">{r.description}</span> },
     { key: "userCount", title: "用户数", align: "right", render: r => <span className="font-medium">{r.userCount}</span> },
-    { key: "permissionIds", title: "权限数", align: "right", render: r => r.permissionIds.includes("*") ? <span className="text-primary font-medium">全部</span> : r.permissionIds.length },
+    { key: "permissionIds", title: "权限数", align: "right", render: r => (r.permissionIds || []).includes("*") ? <span className="text-primary font-medium">全部</span> : (r.permissionIds || []).length },
     { key: "status", title: "状态", render: r => <StatusBadge value={r.status === "active" ? "success" : "muted"} /> },
     { key: "createdAt", title: "创建时间", render: r => <span className="text-muted-foreground text-xs">{r.createdAt}</span> },
   ];
 
   const openAssign = (r: SysRole) => {
     setAssigning(r);
-    setChecked(new Set(r.permissionIds.includes("*") ? allPermissionIds : r.permissionIds));
+    setChecked(new Set((r.permissionIds || []).includes("*") ? allPermissionIds : (r.permissionIds || [])));
   };
   const saveAssign = () => {
     if (!assigning) return;
-    setRoles(prev => prev.map(x => x.id === assigning.id ? { ...x, permissionIds: Array.from(checked) } : x));
-    toast.success(`角色「${assigning.name}」权限已更新（共 ${checked.size} 项）`);
-    setAssigning(null);
+    roleApi.assignPerms(assigning.id, Array.from(checked)).then(() => {
+      setRoles(prev => prev.map(x => x.id === assigning.id ? { ...x, permissionIds: Array.from(checked) } : x));
+      toast.success(`角色「${assigning.name}」权限已更新（共 ${checked.size} 项）`);
+      setAssigning(null);
+    });
   };
   const save = () => {
     if (!editing?.code || !editing?.name) { toast.error("请填写编码与名称"); return; }
-    if (editing.id) {
-      setRoles(prev => prev.map(x => x.id === editing.id ? { ...x, ...editing } as SysRole : x));
-    } else {
-      setRoles(prev => [{ ...empty, ...editing, id: `r${Date.now()}`, userCount: 0, createdAt: new Date().toISOString().slice(0, 19).replace("T", " ") } as SysRole, ...prev]);
-    }
-    toast.success("已保存");
-    setEditing(null);
+    roleApi.save(editing).then((saved) => {
+      if (editing.id) setRoles(prev => prev.map(x => x.id === editing.id ? saved : x));
+      else setRoles(prev => [saved, ...prev]);
+      toast.success("已保存");
+      setEditing(null);
+    });
   };
 
   return (
@@ -113,7 +118,7 @@ export default function RoleManage() {
         actions={[
           { label: "分配权限", onClick: openAssign },
           { label: "编辑", variant: "ghost", onClick: r => setEditing(r) },
-          { label: "删除", onClick: r => { setRoles(prev => prev.filter(x => x.id !== r.id)); toast.success("已删除"); } },
+          { label: "删除", onClick: async r => { await roleApi.remove(r.id); setRoles(prev => prev.filter(x => x.id !== r.id)); toast.success("已删除"); } },
         ]}
       />
 
@@ -146,7 +151,7 @@ export default function RoleManage() {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto py-3">
-            <PermissionTree nodes={mockPermissions} checked={checked} onChange={setChecked} />
+            <PermissionTree nodes={permissions} checked={checked} onChange={setChecked} />
           </div>
           <SheetFooter><Button variant="outline" onClick={() => setAssigning(null)}>取消</Button><Button onClick={saveAssign}>保存权限</Button></SheetFooter>
         </SheetContent>

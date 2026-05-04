@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { SearchBar, type SearchField } from "@/components/SearchBar";
@@ -7,10 +7,9 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ExportButton } from "@/components/ExportButton";
 import { Button } from "@/components/ui/button";
 import { Plus, Upload, Trash2, Package } from "lucide-react";
-import { mockSkus } from "@/mock/sku";
-import { paginate } from "@/mock/data";
 import type { SkuItem } from "@/types/sku";
 import { toast } from "sonner";
+import { skuApi } from "@/api/sku";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -31,23 +30,17 @@ const fields: SearchField[] = [
 
 export default function SkuList() {
   const navigate = useNavigate();
-  const [list, setList] = useState<SkuItem[]>(mockSkus);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [query, setQuery] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
   const [delTarget, setDelTarget] = useState<SkuItem | null>(null);
   const [batchDelOpen, setBatchDelOpen] = useState(false);
+  const [data, setData] = useState<{ records: SkuItem[]; total: number; current: number; size: number }>({ records: [], total: 0, current: 1, size: 12 });
 
-  const filtered = useMemo(() => list.filter(o => {
-    if (query.skuCode && !o.skuCode.includes(query.skuCode)) return false;
-    if (query.skuName && !o.skuName.includes(query.skuName)) return false;
-    if (query.category && o.category !== query.category) return false;
-    if (query.brand && !o.brand.includes(query.brand)) return false;
-    if (query.status && o.status !== query.status) return false;
-    return true;
-  }), [list, query]);
-  const data = paginate(filtered, page, 12);
+  useEffect(() => {
+    skuApi.list({ current: page, size: 12, ...query }).then(setData).catch(() => undefined);
+  }, [page, query]);
 
   const columns: ColumnConfig<SkuItem>[] = [
     { key: "skuCode", title: "商品编码", width: 140, render: r => <span className="font-medium text-primary">{r.skuCode}</span> },
@@ -79,8 +72,12 @@ export default function SkuList() {
     { label: "编辑", onClick: r => navigate(`/sku/detail/${r.id}?edit=1`) },
     {
       label: "上/下架",
-      onClick: r => {
-        setList(prev => prev.map(x => x.id === r.id ? { ...x, status: x.status === "on" ? "off" : "on" } : x));
+      onClick: async r => {
+        await skuApi.toggleStatus(r.id, r.status === "on" ? "off" : "on");
+        setData((prev) => ({
+          ...prev,
+          records: prev.records.map((item) => item.id === r.id ? { ...item, status: item.status === "on" ? "off" : "on" } : item),
+        }));
         toast.success(`已${r.status === "on" ? "下架" : "上架"}：${r.skuName}`);
       },
     },
@@ -89,16 +86,20 @@ export default function SkuList() {
 
   const confirmDelete = () => {
     if (!delTarget) return;
-    setList(prev => prev.filter(x => x.id !== delTarget.id));
-    toast.success(`已删除：${delTarget.skuName}`);
-    setDelTarget(null);
+    skuApi.remove(delTarget.id).then(() => {
+      setData((prev) => ({ ...prev, records: prev.records.filter((x) => x.id !== delTarget.id), total: Math.max(0, prev.total - 1) }));
+      toast.success(`已删除：${delTarget.skuName}`);
+      setDelTarget(null);
+    });
   };
 
   const confirmBatchDelete = () => {
-    setList(prev => prev.filter(x => !selected.includes(x.id)));
-    toast.success(`已删除 ${selected.length} 条商品`);
-    setSelected([]);
-    setBatchDelOpen(false);
+    skuApi.batchRemove(selected).then(() => {
+      setData((prev) => ({ ...prev, records: prev.records.filter((x) => !selected.includes(x.id)), total: Math.max(0, prev.total - selected.length) }));
+      toast.success(`已删除 ${selected.length} 条商品`);
+      setSelected([]);
+      setBatchDelOpen(false);
+    });
   };
 
   return (
@@ -138,7 +139,7 @@ export default function SkuList() {
               </Button>
             </div>
           ) : (
-            <span className="text-sm text-muted-foreground">共 {filtered.length} 条 SKU</span>
+            <span className="text-sm text-muted-foreground">共 {data.total} 条 SKU</span>
           )
         }
         pagination={{ current: data.current, size: data.size, total: data.total, onChange: setPage }}

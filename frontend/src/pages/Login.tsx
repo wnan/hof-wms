@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Warehouse, Lock, User } from "lucide-react";
 import { toast } from "sonner";
+import { authApi } from "@/api/auth";
 
 export default function Login() {
   const nav = useNavigate();
@@ -13,15 +14,19 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) { toast.error("请输入账号和密码"); return; }
     setLoading(true);
-    setTimeout(() => {
-      localStorage.setItem("wms_token", "mock-token");
+    try {
+      const data = await authApi.login(username, password);
+      localStorage.setItem("wms_token", data.token);
+      localStorage.setItem("wms_user", JSON.stringify(data.user));
       toast.success("登录成功");
       nav("/dashboard");
-    }, 500);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -74,7 +79,7 @@ export default function Login() {
             </div>
           </div>
           <Button type="submit" className="w-full" disabled={loading}>{loading ? "登录中..." : "登 录"}</Button>
-          <p className="text-xs text-center text-muted-foreground">提示：演示环境随意输入密码即可登录</p>
+          <p className="text-xs text-center text-muted-foreground">提示：演示环境输入任意非空密码即可登录</p>
         </form>
       </div>
     </div>

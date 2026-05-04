@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,9 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, ChevronRight, ChevronDown, Menu as MenuIcon, MousePointerClick, Cable } from "lucide-react";
-import { mockPermissions } from "@/mock/rbac";
 import type { SysPermission, PermissionType } from "@/types/rbac";
 import { toast } from "sonner";
+import { permissionApi } from "@/api/rbac";
 
 const typeMeta: Record<PermissionType, { label: string; icon: React.ComponentType<{ className?: string }>; tone: string }> = {
   menu: { label: "菜单", icon: MenuIcon, tone: "bg-primary-soft text-primary" },
@@ -81,10 +81,16 @@ function removeNode(nodes: SysPermission[], id: string): SysPermission[] {
 const emptyForm: Partial<SysPermission> = { name: "", code: "", type: "menu", path: "", sort: 1, parentId: null };
 
 export default function PermissionManage() {
-  const [tree, setTree] = useState<SysPermission[]>(cloneTree(mockPermissions));
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(mockPermissions.map(n => n.id)));
+  const [tree, setTree] = useState<SysPermission[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<Partial<SysPermission> | null>(null);
   const [isNew, setIsNew] = useState(false);
+  useEffect(() => {
+    permissionApi.tree().then((data) => {
+      setTree(cloneTree(data));
+      setExpanded(new Set(data.map((n) => n.id)));
+    }).catch(() => undefined);
+  }, []);
 
   const toggle = (id: string) => {
     const next = new Set(expanded);
@@ -103,8 +109,10 @@ export default function PermissionManage() {
   };
   const onEdit = (n: SysPermission) => { setIsNew(false); setEditing({ ...n }); };
   const onDelete = (n: SysPermission) => {
-    setTree(prev => removeNode(prev, n.id));
-    toast.success(`已删除「${n.name}」`);
+    permissionApi.remove(n.id).then(() => {
+      setTree(prev => removeNode(prev, n.id));
+      toast.success(`已删除「${n.name}」`);
+    });
   };
 
   const save = () => {
@@ -117,21 +125,25 @@ export default function PermissionManage() {
         type: (editing.type as PermissionType) ?? "menu",
         path: editing.path, sort: Number(editing.sort) || 1,
       };
-      const next = cloneTree(tree);
-      if (!node.parentId) {
-        next.push(node);
-      } else {
-        const parent = findNode(next, node.parentId);
-        if (parent) { parent.children = parent.children ?? []; parent.children.push(node); }
-      }
-      setTree(next);
-      toast.success("已新增权限");
+      permissionApi.save(node).then((saved) => {
+        const next = cloneTree(tree);
+        if (!saved.parentId) {
+          next.push(saved);
+        } else {
+          const parent = findNode(next, saved.parentId);
+          if (parent) { parent.children = parent.children ?? []; parent.children.push(saved); }
+        }
+        setTree(next);
+        toast.success("已新增权限");
+      });
     } else {
-      const next = cloneTree(tree);
-      const target = findNode(next, editing.id!);
-      if (target) Object.assign(target, editing);
-      setTree(next);
-      toast.success("已更新");
+      permissionApi.save(editing).then(() => {
+        const next = cloneTree(tree);
+        const target = findNode(next, editing.id!);
+        if (target) Object.assign(target, editing);
+        setTree(next);
+        toast.success("已更新");
+      });
     }
     setEditing(null);
   };

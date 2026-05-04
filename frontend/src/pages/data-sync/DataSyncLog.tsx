@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { SearchBar, type SearchField } from "@/components/SearchBar";
 import { TablePro, type ColumnConfig } from "@/components/TablePro";
 import { StatusBadge } from "@/components/StatusBadge";
-import { mockSyncLogs, paginate } from "@/mock/data";
 import type { SyncLog } from "@/types/data-sync";
+import { dataSyncApi } from "@/api/data-sync";
 
 const fields: SearchField[] = [
   { name: "taskName", label: "任务名称", type: "input" },
@@ -18,12 +18,10 @@ export default function DataSyncLog() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [query, setQuery] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
-  const filtered = useMemo(() => mockSyncLogs.filter(l => {
-    if (query.taskName && !l.taskName.includes(query.taskName)) return false;
-    if (query.status && l.status !== query.status) return false;
-    return true;
-  }), [query]);
-  const data = paginate(filtered, page, 12);
+  const [data, setData] = useState<{ records: SyncLog[]; total: number; current: number; size: number }>({ records: [], total: 0, current: 1, size: 12 });
+  useEffect(() => {
+    dataSyncApi.logs({ current: page, size: 12, ...query }).then(setData).catch(() => undefined);
+  }, [page, query]);
 
   const columns: ColumnConfig<SyncLog>[] = [
     { key: "taskName", title: "任务名称" },

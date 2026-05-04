@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { SearchBar, type SearchField } from "@/components/SearchBar";
 import { TablePro, type ColumnConfig } from "@/components/TablePro";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ExportButton } from "@/components/ExportButton";
-import { mockInventory, paginate } from "@/mock/data";
 import type { InventoryItem } from "@/types/inventory";
+import { inventoryApi } from "@/api/inventory";
 
 const fields: SearchField[] = [
   { name: "skuCode", label: "商品编码", type: "input" },
@@ -24,14 +24,10 @@ export default function InventoryList() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [query, setQuery] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
-  const filtered = useMemo(() => mockInventory.filter(o => {
-    if (query.skuCode && !o.skuCode.includes(query.skuCode)) return false;
-    if (query.skuName && !o.skuName.includes(query.skuName)) return false;
-    if (query.warehouse && o.warehouse !== query.warehouse) return false;
-    if (query.category && o.category !== query.category) return false;
-    return true;
-  }), [query]);
-  const data = paginate(filtered, page, 12);
+  const [data, setData] = useState<{ records: InventoryItem[]; total: number; current: number; size: number }>({ records: [], total: 0, current: 1, size: 12 });
+  useEffect(() => {
+    inventoryApi.list({ current: page, size: 12, ...query }).then(setData).catch(() => undefined);
+  }, [page, query]);
 
   const columns: ColumnConfig<InventoryItem>[] = [
     { key: "skuCode", title: "商品编码", render: r => <span className="font-medium text-primary">{r.skuCode}</span> },

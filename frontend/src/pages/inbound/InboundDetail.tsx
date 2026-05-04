@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Trash2, ArrowLeft, Save, Send, Check, X } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
-import { mockInbound } from "@/mock/data";
 import type { InboundItem, InboundOrder } from "@/types/inbound";
 import { toast } from "sonner";
+import { inboundApi } from "@/api/inbound";
 
 export default function InboundDetail() {
   const { id } = useParams();
@@ -21,10 +21,13 @@ export default function InboundDetail() {
     if (isNew) {
       return { id: "", code: `RK${Date.now()}`, supplier: "", type: "purchase", status: "draft", remark: "", items: [], createdAt: new Date().toISOString().slice(0, 10), totalAmount: 0 };
     }
-    return mockInbound.find(x => x.id === id) ?? mockInbound[0];
+    return { id: "", code: "", supplier: "", type: "purchase", status: "draft", remark: "", items: [], createdAt: "", totalAmount: 0 };
   }, [id, isNew]);
 
   const [form, setForm] = useState<InboundOrder>(initial);
+  useEffect(() => {
+    if (!isNew && id) inboundApi.detail(id).then(setForm).catch(() => undefined);
+  }, [id, isNew]);
   const total = form.items.reduce((s, x) => s + x.subtotal, 0);
 
   const update = <K extends keyof InboundOrder>(k: K, v: InboundOrder[K]) => setForm(p => ({ ...p, [k]: v }));
@@ -120,16 +123,16 @@ export default function InboundDetail() {
       </div>
 
       <div className="panel flex items-center justify-end gap-2">
-        <Button variant="outline" onClick={() => toast.success("草稿已保存")} className="gap-1.5"><Save className="h-4 w-4" />保存草稿</Button>
-        <Button variant="outline" onClick={() => toast.success("已提交审核")} className="gap-1.5"><Send className="h-4 w-4" />提交审核</Button>
+        <Button variant="outline" onClick={async () => { const saved = await inboundApi.save({ ...form, totalAmount: total }); setForm(saved); toast.success("草稿已保存"); }} className="gap-1.5"><Save className="h-4 w-4" />保存草稿</Button>
+        <Button variant="outline" onClick={async () => { const saved = await inboundApi.save({ ...form, totalAmount: total }); await inboundApi.submit(saved.id); setForm({ ...saved, status: "pending" }); toast.success("已提交审核"); }} className="gap-1.5"><Send className="h-4 w-4" />提交审核</Button>
         {form.status === "pending" && (
           <>
-            <Button variant="outline" onClick={() => toast.error("已驳回")} className="gap-1.5"><X className="h-4 w-4" />审核驳回</Button>
-            <Button onClick={() => toast.success("审核通过")} className="gap-1.5"><Check className="h-4 w-4" />审核通过</Button>
+            <Button variant="outline" onClick={async () => { await inboundApi.approve(form.id, false); setForm({ ...form, status: "rejected" }); toast.error("已驳回"); }} className="gap-1.5"><X className="h-4 w-4" />审核驳回</Button>
+            <Button onClick={async () => { await inboundApi.approve(form.id, true); setForm({ ...form, status: "approved" }); toast.success("审核通过"); }} className="gap-1.5"><Check className="h-4 w-4" />审核通过</Button>
           </>
         )}
         {form.status === "approved" && (
-          <Button onClick={() => toast.success("已确认入库")} className="gap-1.5"><Check className="h-4 w-4" />确认入库</Button>
+          <Button onClick={async () => { await inboundApi.confirm(form.id); setForm({ ...form, status: "stored" }); toast.success("已确认入库"); }} className="gap-1.5"><Check className="h-4 w-4" />确认入库</Button>
         )}
       </div>
     </div>

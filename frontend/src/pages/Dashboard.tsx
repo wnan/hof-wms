@@ -1,22 +1,9 @@
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { mockInbound, mockOutbound, mockInventory, mockAlerts } from "@/mock/data";
 import { ArrowDownToLine, ArrowUpFromLine, Boxes, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { StatusBadge } from "@/components/StatusBadge";
-
-const trend = Array.from({ length: 14 }, (_, i) => ({
-  date: `${i + 1}日`,
-  入库: 80 + ((i * 13) % 90),
-  出库: 60 + ((i * 17) % 80),
-}));
-
-const categoryDist = [
-  { name: "3C数码", value: 320 },
-  { name: "家居日用", value: 240 },
-  { name: "服饰鞋包", value: 180 },
-  { name: "食品饮料", value: 140 },
-  { name: "美妆个护", value: 90 },
-];
+import { dashboardApi, type DashboardSummary } from "@/api/dashboard";
 
 const COLORS = ["hsl(214 88% 38%)", "hsl(199 89% 48%)", "hsl(142 71% 38%)", "hsl(38 92% 50%)", "hsl(280 70% 55%)"];
 
@@ -42,15 +29,33 @@ function StatCard({ title, value, delta, up, icon: Icon, tone }: { title: string
 }
 
 export default function Dashboard() {
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+
+  useEffect(() => {
+    dashboardApi.summary().then(setSummary).catch(() => undefined);
+  }, []);
+
+  const trend = summary?.trend.map((item) => ({
+    date: item.date,
+    入库: item.inbound,
+    出库: item.outbound,
+  })) ?? [];
+  const categoryDist = summary?.categoryDist ?? [];
+  const warehouseLoad = summary?.warehouseLoad.map((item) => ({
+    name: item.name,
+    吞吐: item.value,
+  })) ?? [];
+  const latestInbound = summary?.latestInbound ?? [];
+
   return (
     <div className="page-container">
       <PageHeader title="仪表盘" subtitle="今日运营概览与趋势分析" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="今日入库单" value={mockInbound.length} delta="+12.5%" up icon={ArrowDownToLine} tone="bg-primary-soft text-primary" />
-        <StatCard title="今日出库单" value={mockOutbound.length} delta="+8.2%" up icon={ArrowUpFromLine} tone="bg-info-soft text-info" />
-        <StatCard title="在库 SKU" value={mockInventory.length} delta="-2.1%" up={false} icon={Boxes} tone="bg-success-soft text-success" />
-        <StatCard title="库存预警" value={mockAlerts.length} delta="+3" up={false} icon={AlertTriangle} tone="bg-warning-soft text-warning" />
+        <StatCard title="今日入库单" value={summary?.metrics.inboundCount ?? 0} delta="+12.5%" up icon={ArrowDownToLine} tone="bg-primary-soft text-primary" />
+        <StatCard title="今日出库单" value={summary?.metrics.outboundCount ?? 0} delta="+8.2%" up icon={ArrowUpFromLine} tone="bg-info-soft text-info" />
+        <StatCard title="在库 SKU" value={summary?.metrics.inventorySkuCount ?? 0} delta="-2.1%" up={false} icon={Boxes} tone="bg-success-soft text-success" />
+        <StatCard title="库存预警" value={summary?.metrics.alertCount ?? 0} delta="+3" up={false} icon={AlertTriangle} tone="bg-warning-soft text-warning" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -89,12 +94,7 @@ export default function Dashboard() {
         <div className="panel">
           <h3 className="font-semibold mb-4">仓库吞吐量 TOP 4</h3>
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={[
-              { name: "上海中心仓", 吞吐: 1280 },
-              { name: "广州前置仓", 吞吐: 980 },
-              { name: "成都分拣仓", 吞吐: 760 },
-              { name: "北京旗舰仓", 吞吐: 620 },
-            ]}>
+            <BarChart data={warehouseLoad}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
               <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
@@ -106,11 +106,11 @@ export default function Dashboard() {
         <div className="panel">
           <h3 className="font-semibold mb-4">最新入库单</h3>
           <div className="space-y-3">
-            {mockInbound.slice(0, 6).map(o => (
+            {latestInbound.map(o => (
               <div key={o.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{o.code}</p>
-                  <p className="text-xs text-muted-foreground truncate">{o.supplier} · ¥{o.totalAmount.toLocaleString()}</p>
+                  <p className="text-sm font-medium truncate">{o.code || o.orderNo || '-'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{o.supplier || o.supplierName} · ¥{(o.totalAmount || 0).toLocaleString()}</p>
                 </div>
                 <StatusBadge value={o.status} />
               </div>

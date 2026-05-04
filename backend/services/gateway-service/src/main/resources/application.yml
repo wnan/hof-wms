@@ -1,0 +1,37 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/auth/**,/api/system/**
+        - id: master-data-service
+          uri: ${MASTER_DATA_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/sku/**
+        - id: inbound-service
+          uri: ${INBOUND_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/inbound/**
+        - id: outbound-service
+          uri: ${OUTBOUND_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/outbound/**
+        - id: inventory-service
+          uri: ${INVENTORY_SERVICE_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/inventory/**,/api/dashboard/**
+        - id: integration-service
+          uri: ${INTEGRATION_SERVICE_URL:http://localhost:8086}
+          predicates:
+            - Path=/api/data-sync/**
+        - id: report-service
+          uri: ${REPORT_SERVICE_URL:http://localhost:8087}
+          predicates:
+            - Path=/api/report/**

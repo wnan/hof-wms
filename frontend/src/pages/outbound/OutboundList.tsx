@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { SearchBar, type SearchField } from "@/components/SearchBar";
@@ -7,9 +7,9 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ExportButton } from "@/components/ExportButton";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { mockOutbound, paginate } from "@/mock/data";
 import type { OutboundOrder } from "@/types/outbound";
 import { toast } from "sonner";
+import { outboundApi } from "@/api/outbound";
 
 const searchFields: SearchField[] = [
   { name: "code", label: "出库单号", type: "input" },
@@ -28,14 +28,11 @@ export default function OutboundList() {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [query, setQuery] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
+  const [pageData, setPageData] = useState<{ records: OutboundOrder[]; total: number; current: number; size: number }>({ records: [], total: 0, current: 1, size: 10 });
 
-  const filtered = useMemo(() => mockOutbound.filter(o => {
-    if (query.code && !o.code.includes(query.code)) return false;
-    if (query.customer && !o.customer.includes(query.customer)) return false;
-    if (query.status && o.status !== query.status) return false;
-    return true;
-  }), [query]);
-  const pageData = paginate(filtered, page, 10);
+  useEffect(() => {
+    outboundApi.list({ current: page, size: 10, ...query }).then(setPageData).catch(() => undefined);
+  }, [page, query]);
 
   const columns: ColumnConfig<OutboundOrder>[] = [
     { key: "code", title: "出库单号", render: r => <span className="font-medium text-primary">{r.code}</span> },
@@ -61,7 +58,7 @@ export default function OutboundList() {
         actions={[
           { label: "查看", onClick: r => nav(`/outbound/detail/${r.id}`) },
           { label: "编辑", show: r => r.status === "draft", onClick: r => nav(`/outbound/detail/${r.id}`) },
-          { label: "删除", onClick: () => toast.success("已删除") },
+          { label: "删除", onClick: r => toast.info(`后端暂未提供删除接口：${r.code}`) },
         ]}
       />
     </div>

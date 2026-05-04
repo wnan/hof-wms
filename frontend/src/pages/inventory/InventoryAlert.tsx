@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { TablePro, type ColumnConfig } from "@/components/TablePro";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -6,16 +6,24 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { mockAlerts, paginate } from "@/mock/data";
 import type { StockAlert } from "@/types/inventory";
 import { toast } from "sonner";
 import { Settings2, AlertTriangle } from "lucide-react";
+import { inventoryApi } from "@/api/inventory";
 
 export default function InventoryAlert() {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<StockAlert | null>(null);
   const [threshold, setThreshold] = useState(0);
-  const data = paginate(mockAlerts, page, 10);
+  const [data, setData] = useState<{ records: StockAlert[]; total: number; current: number; size: number }>({ records: [], total: 0, current: 1, size: 10 });
+  useEffect(() => {
+    inventoryApi.alertList({ current: page, size: 10 }).then(setData).catch(() => undefined);
+  }, [page]);
+  const alerts = data.records;
+  const stats = useMemo(() => ({
+    low: alerts.filter((a) => a.alertType === "low").length,
+    out: alerts.filter((a) => a.alertType === "out").length,
+  }), [alerts]);
 
   const columns: ColumnConfig<StockAlert>[] = [
     { key: "skuCode", title: "商品编码", render: r => <span className="font-medium text-primary">{r.skuCode}</span> },
@@ -32,15 +40,15 @@ export default function InventoryAlert() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="stat-card flex items-center gap-4">
           <div className="h-11 w-11 rounded-md bg-warning-soft text-warning flex items-center justify-center"><AlertTriangle className="h-5 w-5" /></div>
-          <div><p className="text-sm text-muted-foreground">库存不足</p><p className="text-xl font-semibold">{mockAlerts.filter(a => a.alertType === "low").length}</p></div>
+          <div><p className="text-sm text-muted-foreground">库存不足</p><p className="text-xl font-semibold">{stats.low}</p></div>
         </div>
         <div className="stat-card flex items-center gap-4">
           <div className="h-11 w-11 rounded-md bg-destructive/10 text-destructive flex items-center justify-center"><AlertTriangle className="h-5 w-5" /></div>
-          <div><p className="text-sm text-muted-foreground">已售罄</p><p className="text-xl font-semibold">{mockAlerts.filter(a => a.alertType === "out").length}</p></div>
+          <div><p className="text-sm text-muted-foreground">已售罄</p><p className="text-xl font-semibold">{stats.out}</p></div>
         </div>
         <div className="stat-card flex items-center gap-4">
           <div className="h-11 w-11 rounded-md bg-info-soft text-info flex items-center justify-center"><Settings2 className="h-5 w-5" /></div>
-          <div><p className="text-sm text-muted-foreground">总预警数</p><p className="text-xl font-semibold">{mockAlerts.length}</p></div>
+          <div><p className="text-sm text-muted-foreground">总预警数</p><p className="text-xl font-semibold">{data.total}</p></div>
         </div>
       </div>
 
@@ -60,7 +68,7 @@ export default function InventoryAlert() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>取消</Button>
-            <Button onClick={() => { toast.success("阈值已更新"); setEditing(null); }}>保存</Button>
+            <Button onClick={async () => { if (!editing) return; await inventoryApi.alertSet(editing.id, threshold); setData((prev) => ({ ...prev, records: prev.records.map((item) => item.id === editing.id ? { ...item, safetyStock: threshold } : item) })); toast.success("阈值已更新"); setEditing(null); }}>保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
