@@ -4,4 +4,13 @@ dependencies {
     implementation project(":common-web")
     implementation project(":common-db")
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-quartz'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'commons-codec:commons-codec:1.16.1'
+    implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    implementation 'com.alibaba:easyexcel:4.0.3'
+    implementation 'org.springframework:spring-expression'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }

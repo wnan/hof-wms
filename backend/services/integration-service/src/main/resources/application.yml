@@ -13,3 +13,15 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  quartz:
+    job-store-type: memory
+    auto-startup: true
+    properties:
+      org.quartz.scheduler.instanceName: hof-wms-scheduler
+      org.quartz.threadPool.threadCount: 5
+
+sellfox:
+  client-id: ${SELLFOX_CLIENT_ID:}
+  client-secret: ${SELLFOX_CLIENT_SECRET:}
+  sign-key: ${SELLFOX_SIGN_KEY:}
+  base-url: ${SELLFOX_BASE_URL:https://openapi.sellfox.com}

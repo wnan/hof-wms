@@ -180,7 +180,7 @@ CREATE TABLE IF NOT EXISTS integration.sync_field_mapping (
 );
 
 CREATE TABLE IF NOT EXISTS integration.sync_log (
-    id BIGINT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     task_id BIGINT NOT NULL,
     task_name VARCHAR(128) NOT NULL,
     start_time TIMESTAMP NOT NULL,

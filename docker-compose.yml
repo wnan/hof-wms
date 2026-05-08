@@ -143,6 +143,10 @@ services:
       DB_PASSWORD: insightowl
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      SELLFOX_CLIENT_ID: 368192
+      SELLFOX_CLIENT_SECRET: 1f8e1686-63f4-4777-9ca8-b059624fcf66
+      SELLFOX_SIGN_KEY: 1f8e1686-63f4-4777-9ca8-b059624fcf66
+      SELLFOX_BASE_URL: https://openapi.sellfox.com
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
