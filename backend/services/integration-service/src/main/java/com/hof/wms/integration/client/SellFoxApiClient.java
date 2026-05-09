@@ -9,6 +9,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.apache.commons.codec.binary.Hex;
+import org.springframework.retry.RetryCallback;
+import org.springframework.retry.RetryContext;
+import org.springframework.retry.backoff.FixedBackOffPolicy;
+import org.springframework.retry.policy.SimpleRetryPolicy;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
@@ -36,6 +41,20 @@ public class SellFoxApiClient {
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build();
+
+    /** 失败重试模板：5秒间隔，最多重试3次 */
+    private final RetryTemplate retryTemplate = buildRetryTemplate();
+
+    private static RetryTemplate buildRetryTemplate() {
+        RetryTemplate template = new RetryTemplate();
+        FixedBackOffPolicy backOffPolicy = new FixedBackOffPolicy();
+        backOffPolicy.setBackOffPeriod(5000);
+        SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy();
+        retryPolicy.setMaxAttempts(4); // 1次初始 + 3次重试
+        template.setBackOffPolicy(backOffPolicy);
+        template.setRetryPolicy(retryPolicy);
+        return template;
+    }
 
     private static final Gson GSON = new GsonBuilder()
             .registerTypeAdapter(LocalDateTime.class, new com.google.gson.JsonSerializer<LocalDateTime>() {
@@ -241,9 +260,21 @@ public class SellFoxApiClient {
 
     /**
      * 通用API调用方法
-     * 自动处理：1) Token过期刷新  2) 同接口秒级限流
+     * 自动处理：1) Token过期刷新  2) 同接口秒级限流  3) 失败5秒后重试(最多3次)
      */
     public <T> ApiResponse<T> callApi(String apiPath, String method, String requestBodyJson, Class<T> responseClass) throws IOException {
+        return retryTemplate.execute((RetryCallback<ApiResponse<T>, IOException>) context -> {
+            if (context.getRetryCount() > 0) {
+                log.info("API调用重试第 {} 次: {}", context.getRetryCount(), apiPath);
+            }
+            return doCallApi(apiPath, method, requestBodyJson, responseClass);
+        });
+    }
+
+    /**
+     * 实际执行API调用
+     */
+    private <T> ApiResponse<T> doCallApi(String apiPath, String method, String requestBodyJson, Class<T> responseClass) throws IOException {
         // 1. 确保Token有效
         ensureAccessToken();
 
@@ -272,35 +303,39 @@ public class SellFoxApiClient {
                     .build();
 
             try (Response response = CLIENT.newCall(request).execute()) {
-                if (response.isSuccessful() && response.body() != null) {
-                    String responseBody = response.body().string();
-                    log.debug("API调用成功: {}", responseBody);
+                String responseBody = response.body() != null ? response.body().string() : "";
 
-                    // 检查返回中是否有token失效的标识，若有则刷新重试
+                if (response.isSuccessful()) {
                     ApiResponse<T> apiResponse = GSON.fromJson(responseBody,
                             TypeToken.getParameterized(ApiResponse.class, responseClass).getType());
+
+                    // Token失效，刷新后重试
                     if (apiResponse != null && isTokenExpiredResponse(apiResponse)) {
                         log.warn("API返回Token失效标识，刷新Token后重试: {}", apiPath);
                         refreshToken();
-                        return callApi(apiPath, method, requestBodyJson, responseClass);
+                        return doCallApi(apiPath, method, requestBodyJson, responseClass);
                     }
                     return apiResponse;
                 } else {
-                    String errorBody = response.body() != null ? response.body().string() : "N/A";
-                    log.error("API调用失败: {} {}, Body: {}", response.code(), response.message(), errorBody);
+                    log.error("API调用失败: {} {}, Body: {}", response.code(), response.message(), responseBody);
 
-                    // 401/403 可能是Token过期，刷新重试
+                    // 401/403 Token过期，刷新后重试（不走RetryTemplate）
                     if (response.code() == 401 || response.code() == 403) {
                         log.warn("API返回 {} 状态码，刷新Token后重试: {}", response.code(), apiPath);
                         refreshToken();
-                        return callApi(apiPath, method, requestBodyJson, responseClass);
+                        return doCallApi(apiPath, method, requestBodyJson, responseClass);
                     }
+
+                    // 其他HTTP错误，抛异常触发RetryTemplate重试
+                    throw new IOException("API调用失败: " + response.code() + " " + response.message() + ", Body: " + responseBody);
                 }
             }
+        } catch (IOException e) {
+            throw e;
         } catch (Exception e) {
             log.error("API调用异常: {}", e.getMessage(), e);
+            throw new IOException("API调用异常: " + e.getMessage(), e);
         }
-        return null;
     }
 
     /**

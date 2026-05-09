@@ -24,7 +24,7 @@ public class AdCampaignParseService {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    public List<AdCampaignReport> parseExcel(String filePath, String shopId) {
+    public List<AdCampaignReport> parseExcel(String filePath, String shopId, String reportTypeCode) {
         log.info("开始解析Excel文件: {}", filePath);
 
         List<AdCampaignReport> reports = new ArrayList<>();
@@ -32,7 +32,7 @@ public class AdCampaignParseService {
         EasyExcel.read(filePath, AdCampaignReportDto.class,
                 new PageReadListener<AdCampaignReportDto>(dataList -> {
                     for (AdCampaignReportDto dto : dataList) {
-                        AdCampaignReport report = convertToEntity(dto, shopId);
+                        AdCampaignReport report = convertToEntity(dto, shopId, reportTypeCode);
                         if (report != null && report.getReportDate() != null && report.getCampaignName() != null) {
                             reports.add(report);
                         }
@@ -43,11 +43,12 @@ public class AdCampaignParseService {
         return reports;
     }
 
-    private AdCampaignReport convertToEntity(AdCampaignReportDto dto, String defaultShopId) {
+    private AdCampaignReport convertToEntity(AdCampaignReportDto dto, String defaultShopId, String reportTypeCode) {
         if (dto == null) return null;
 
         AdCampaignReport report = new AdCampaignReport();
         report.setShopId(defaultShopId);
+        report.setReportTypeCode(reportTypeCode);
         report.setShopName(dto.getShopName());
         report.setReportDate(parseDate(dto.getDate()));
         report.setCampaignName(dto.getCampaignName());

@@ -58,28 +58,15 @@ public class SfImportService {
     // ======================== 广告活动数据导入 ========================
 
     @Transactional
-    public int importAdCampaignReport(String filePath, String shopId, LocalDate deleteDate,
-                                      LocalDate reportStartDate, LocalDate reportEndDate) throws IOException {
-        log.info("开始导入广告活动数据，文件: {}, 删除日期: {}, 报告日期范围: {} ~ {}",
-                filePath, deleteDate, reportStartDate, reportEndDate);
+    public int importAdCampaignReport(String filePath, String shopId, String reportTypeCode) throws IOException {
+        log.info("开始导入广告活动数据，文件: {}, shopId: {}, reportTypeCode: {}",
+                filePath, shopId, reportTypeCode);
 
-        List<AdCampaignReport> reports = adCampaignParseService.parseExcel(filePath, shopId);
+        List<AdCampaignReport> reports = adCampaignParseService.parseExcel(filePath, shopId, reportTypeCode);
         if (reports.isEmpty()) {
             log.warn("Excel解析结果为空，跳过导入");
             return 0;
         }
-
-        if (deleteDate != null) {
-            int deleted = adCampaignReportMapper.delete(
-                    new LambdaQueryWrapper<AdCampaignReport>()
-                            .eq(AdCampaignReport::getReportDate, deleteDate));
-            log.info("已删除 {} 的 {} 条旧数据", deleteDate, deleted);
-        }
-
-        int deletedRange = adCampaignReportMapper.delete(
-                new LambdaQueryWrapper<AdCampaignReport>()
-                        .between(AdCampaignReport::getReportDate, reportStartDate, reportEndDate));
-        log.info("已删除日期范围 {} ~ {} 的 {} 条旧数据", reportStartDate, reportEndDate, deletedRange);
 
         int inserted = 0;
         for (AdCampaignReport report : reports) {

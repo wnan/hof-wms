@@ -1,0 +1,27 @@
+# Backend build artifacts
+backend/**/build/
+backend/.gradle/
+backend/.idea/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Gradle
+.gradle/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+sf-api

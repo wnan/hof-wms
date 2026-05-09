@@ -65,21 +65,18 @@ public class AdCampaignImportJob implements Job {
         try {
             AdCampaignImportParams params = sfImportService.resolveParams(paramsJson, AdCampaignImportParams.class);
             String adTypeCode = params.getAdTypeCode();
-            String reportTypeCode = params.getReportTypeCode();
+            List<String> reportTypeCodes = params.getEffectiveReportTypeCodes();
             String timeUnit = params.getTimeUnit();
             String startDate = params.getStartDateExpr() != null ? params.getStartDateExpr()
                     : LocalDate.now().minusDays(1).format(DATE_FMT);
             String endDate = params.getEndDateExpr() != null ? params.getEndDateExpr()
                     : LocalDate.now().format(DATE_FMT);
-            String deleteDateStr = params.getDeleteDateExpr() != null ? params.getDeleteDateExpr()
-                    : LocalDate.now().minusDays(1).format(DATE_FMT);
 
             LocalDate reportStartDate = LocalDate.parse(startDate);
             LocalDate reportEndDate = LocalDate.parse(endDate);
-            LocalDate deleteDate = LocalDate.parse(deleteDateStr);
 
-            log.info("导入参数 - 广告类型: {}, 报告类型: {}, 日期范围: {} ~ {}, 删除日期: {}",
-                    adTypeCode, reportTypeCode, reportStartDate, reportEndDate, deleteDate);
+            log.info("导入参数 - 广告类型: {}, 报告类型: {}, 日期范围: {} ~ {}",
+                    adTypeCode, reportTypeCodes, reportStartDate, reportEndDate);
 
             ApiResponse<?> tokenResponse = apiClient.getAccessToken();
             if (tokenResponse == null || !tokenResponse.isSuccess()) {
@@ -98,16 +95,29 @@ public class AdCampaignImportJob implements Job {
 
             int totalImported = 0;
             int failCount = 0;
+            StringBuilder messageBuilder = new StringBuilder();
 
-            for (ShopInfo shop : shops) {
-                try {
-                    int imported = processShop(shop, adTypeCode, reportTypeCode, timeUnit,
-                            reportStartDate, reportEndDate, deleteDate);
-                    totalImported += imported;
-                } catch (Exception e) {
-                    failCount++;
-                    log.error("处理店铺 {} (ID: {}) 的广告数据失败: {}", shop.getName(), shop.getId(), e.getMessage());
+            for (String reportTypeCode : reportTypeCodes) {
+                log.info("开始处理报告类型: {} (广告类型: {})", reportTypeCode, adTypeCode);
+                int reportImported = 0;
+                int reportFailCount = 0;
+
+                for (ShopInfo shop : shops) {
+                    try {
+                        int imported = processShop(shop, adTypeCode, reportTypeCode, timeUnit,
+                                reportStartDate, reportEndDate);
+                        reportImported += imported;
+                    } catch (Exception e) {
+                        reportFailCount++;
+                        failCount++;
+                        log.error("处理店铺 {} 报告类型 {} 失败: {}", shop.getName(), reportTypeCode, e.getMessage());
+                    }
                 }
+
+                totalImported += reportImported;
+                messageBuilder.append(reportTypeCode)
+                        .append(": 导入").append(reportImported).append("条")
+                        .append(", 失败").append(reportFailCount).append("家店铺; ");
             }
 
             syncLog.setEndTime(LocalDateTime.now());
@@ -118,7 +128,7 @@ public class AdCampaignImportJob implements Job {
             syncLogRepository.save(syncLog);
 
             sfImportService.updateTaskExecuteStatus(taskConfigId, "SUCCESS",
-                    "导入完成，共 " + totalImported + " 条广告活动数据");
+                    messageBuilder.toString());
             log.info("===== 广告活动数据导入任务完成: {}，共导入 {} 条 =====", taskName, totalImported);
 
         } catch (Exception e) {
@@ -156,8 +166,7 @@ public class AdCampaignImportJob implements Job {
     }
 
     private int processShop(ShopInfo shop, String adTypeCode, String reportTypeCode,
-                            String timeUnit, LocalDate startDate, LocalDate endDate,
-                            LocalDate deleteDate) throws Exception {
+                            String timeUnit, LocalDate startDate, LocalDate endDate) throws Exception {
         log.info("处理店铺: {} (ID: {})", shop.getName(), shop.getId());
 
         CreateTaskRequest request = new CreateTaskRequest();
@@ -200,7 +209,7 @@ public class AdCampaignImportJob implements Job {
             log.info("报表文件已下载: {}", savePath);
 
             int imported = sfImportService.importAdCampaignReport(
-                    savePath, shop.getId(), deleteDate, startDate, endDate);
+                    savePath, shop.getId(), reportTypeCode);
             totalImported += imported;
         }
 
