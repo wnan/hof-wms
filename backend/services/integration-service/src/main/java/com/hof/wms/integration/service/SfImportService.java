@@ -6,8 +6,10 @@ import com.google.gson.reflect.TypeToken;
 import com.hof.wms.integration.entity.AdCampaignReport;
 import com.hof.wms.integration.entity.SyncTask;
 import com.hof.wms.integration.mapper.AdCampaignReportMapper;
+import com.hof.wms.integration.mapper.PortfolioInfoMapper;
 import com.hof.wms.integration.mapper.ShopInfoMapper;
 import com.hof.wms.integration.mapper.SyncTaskMapper;
+import com.hof.wms.integration.model.PortfolioInfo;
 import com.hof.wms.integration.model.ShopInfo;
 import com.hof.wms.integration.util.SpelExpressionUtil;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ public class SfImportService {
 
     private final ShopInfoMapper shopInfoMapper;
     private final AdCampaignReportMapper adCampaignReportMapper;
+    private final PortfolioInfoMapper portfolioInfoMapper;
     private final AdCampaignParseService adCampaignParseService;
     private final SyncTaskMapper syncTaskMapper;
     private static final Gson GSON = new Gson();
@@ -55,14 +58,34 @@ public class SfImportService {
         return inserted;
     }
 
+    // ======================== ShopInfo 查询 ========================
+
+    public List<ShopInfo> getAllShops() {
+        return shopInfoMapper.selectList(null);
+    }
+
     // ======================== 广告活动数据导入 ========================
 
     @Transactional
-    public int importAdCampaignReport(String filePath, String shopId, String reportTypeCode) throws IOException {
-        log.info("开始导入广告活动数据，文件: {}, shopId: {}, reportTypeCode: {}",
-                filePath, shopId, reportTypeCode);
+    public int importAdCampaignReport(String filePath, String shopId, String reportTypeCode, String adTypeCode) throws IOException {
+        log.info("开始导入广告活动数据，文件: {}, shopId: {}, reportTypeCode: {}, adTypeCode: {}",
+                filePath, shopId, reportTypeCode, adTypeCode);
 
-        List<AdCampaignReport> reports = adCampaignParseService.parseExcel(filePath, shopId, reportTypeCode);
+        List<AdCampaignReport> reports = adCampaignParseService.parseExcel(filePath, shopId, reportTypeCode, adTypeCode);
+        return doImportAdCampaignReports(reports);
+    }
+
+    @Transactional
+    public int importAdCampaignReport(String filePath, Map<String, String> shopNameToIdMap,
+                                       String reportTypeCode, String adTypeCode) throws IOException {
+        log.info("开始导入广告活动数据(多店铺)，文件: {}, reportTypeCode: {}, adTypeCode: {}",
+                filePath, reportTypeCode, adTypeCode);
+
+        List<AdCampaignReport> reports = adCampaignParseService.parseExcel(filePath, shopNameToIdMap, reportTypeCode, adTypeCode);
+        return doImportAdCampaignReports(reports);
+    }
+
+    private int doImportAdCampaignReports(List<AdCampaignReport> reports) throws IOException {
         if (reports.isEmpty()) {
             log.warn("Excel解析结果为空，跳过导入");
             return 0;
@@ -74,6 +97,30 @@ public class SfImportService {
         }
 
         log.info("广告活动数据导入完成，插入 {} 条", inserted);
+        return inserted;
+    }
+
+    // ======================== 任务配置管理 ========================
+
+    // ======================== Portfolio 导入（全覆盖） ========================
+
+    @Transactional
+    public int fullImportPortfolioInfo(List<PortfolioInfo> portfolios) {
+        log.info("开始全覆盖导入广告组合信息，共 {} 条", portfolios.size());
+
+        portfolioInfoMapper.delete(null);
+        log.info("已删除旧数据");
+
+        int inserted = 0;
+        LocalDateTime now = LocalDateTime.now();
+        for (PortfolioInfo portfolio : portfolios) {
+            portfolio.setCreatedAt(now);
+            portfolio.setUpdatedAt(now);
+            portfolioInfoMapper.insert(portfolio);
+            inserted++;
+        }
+
+        log.info("广告组合信息导入完成，插入 {} 条", inserted);
         return inserted;
     }
 

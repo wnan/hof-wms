@@ -2,6 +2,7 @@ package com.hof.wms.integration.config;
 
 import com.hof.wms.integration.entity.SyncTask;
 import com.hof.wms.integration.job.AdCampaignImportJob;
+import com.hof.wms.integration.job.PortfolioImportJob;
 import com.hof.wms.integration.job.ShopInfoImportJob;
 import com.hof.wms.integration.service.SfImportService;
 import lombok.RequiredArgsConstructor;
@@ -115,6 +116,7 @@ public class QuartzConfig {
         return switch (syncType) {
             case SyncTask.TYPE_SHOP_INFO -> ShopInfoImportJob.class;
             case SyncTask.TYPE_AD_CAMPAIGN -> AdCampaignImportJob.class;
+            case SyncTask.TYPE_PORTFOLIO -> PortfolioImportJob.class;
             default -> null;
         };
     }

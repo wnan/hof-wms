@@ -237,6 +237,17 @@ public class SellFoxApiClient {
     }
 
     /**
+     * 获取广告组合(Portfolio)列表
+     * 使用游标分页，按店铺查询
+     */
+    public ApiResponse<PortfolioListResponse> getPortfolioList(String shopId, String nextToken, String pageSize) throws IOException {
+        String apiPath = "/api/cpc/manageData/portfolio.json";
+        PortfolioListRequest request = new PortfolioListRequest(shopId, nextToken, pageSize);
+        String requestBody = GSON.toJson(request);
+        return callApi(apiPath, "POST", requestBody, PortfolioListResponse.class);
+    }
+
+    /**
      * 下载文件到本地
      */
     public void downloadFile(String fileUrl, String savePath) throws IOException {

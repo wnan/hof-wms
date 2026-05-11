@@ -27,6 +27,9 @@ public class AdCampaignReport {
     @TableField("report_type_code")
     private String reportTypeCode;
 
+    @TableField("ad_type_code")
+    private String adTypeCode;
+
     @TableField("report_date")
     private LocalDate reportDate;
 

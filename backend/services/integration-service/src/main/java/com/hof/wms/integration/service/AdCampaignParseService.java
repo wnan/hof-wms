@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 广告活动报告Excel解析服务
@@ -24,7 +25,13 @@ public class AdCampaignParseService {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    public List<AdCampaignReport> parseExcel(String filePath, String shopId, String reportTypeCode) {
+    public List<AdCampaignReport> parseExcel(String filePath, String defaultShopId, String reportTypeCode, String adTypeCode) {
+        return parseExcel(filePath, defaultShopId == null ? null : Map.of(defaultShopId, defaultShopId),
+                reportTypeCode, adTypeCode);
+    }
+
+    public List<AdCampaignReport> parseExcel(String filePath, Map<String, String> shopNameToIdMap,
+                                               String reportTypeCode, String adTypeCode) {
         log.info("开始解析Excel文件: {}", filePath);
 
         List<AdCampaignReport> reports = new ArrayList<>();
@@ -32,7 +39,7 @@ public class AdCampaignParseService {
         EasyExcel.read(filePath, AdCampaignReportDto.class,
                 new PageReadListener<AdCampaignReportDto>(dataList -> {
                     for (AdCampaignReportDto dto : dataList) {
-                        AdCampaignReport report = convertToEntity(dto, shopId, reportTypeCode);
+                        AdCampaignReport report = convertToEntity(dto, shopNameToIdMap, reportTypeCode, adTypeCode);
                         if (report != null && report.getReportDate() != null && report.getCampaignName() != null) {
                             reports.add(report);
                         }
@@ -43,12 +50,17 @@ public class AdCampaignParseService {
         return reports;
     }
 
-    private AdCampaignReport convertToEntity(AdCampaignReportDto dto, String defaultShopId, String reportTypeCode) {
+    private AdCampaignReport convertToEntity(AdCampaignReportDto dto, Map<String, String> shopNameToIdMap,
+                                              String reportTypeCode, String adTypeCode) {
         if (dto == null) return null;
 
         AdCampaignReport report = new AdCampaignReport();
-        report.setShopId(defaultShopId);
+        // 通过店铺名称映射shopId，找不到则设为null
+        if (shopNameToIdMap != null && dto.getShopName() != null) {
+            report.setShopId(shopNameToIdMap.get(dto.getShopName()));
+        }
         report.setReportTypeCode(reportTypeCode);
+        report.setAdTypeCode(adTypeCode);
         report.setShopName(dto.getShopName());
         report.setReportDate(parseDate(dto.getDate()));
         report.setCampaignName(dto.getCampaignName());

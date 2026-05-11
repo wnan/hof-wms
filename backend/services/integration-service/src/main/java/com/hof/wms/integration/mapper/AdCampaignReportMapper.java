@@ -9,19 +9,19 @@ import org.apache.ibatis.annotations.Mapper;
 public interface AdCampaignReportMapper extends BaseMapper<AdCampaignReport> {
 
     @Insert("INSERT INTO sf_api.ad_campaign_report " +
-            "(shop_id, shop_name, report_type_code, report_date, campaign_name, targeting_type, campaign_status, " +
+            "(shop_id, shop_name, report_type_code, ad_type_code, report_date, campaign_name, targeting_type, campaign_status, " +
             "impressions, clicks, spend, cpc, ad_sales, advertised_product_sales, " +
             "other_product_ad_sales, ctr, conversion_rate, acos, roas, " +
             "ad_orders, advertised_product_orders, other_product_ad_orders, " +
             "ad_units, advertised_product_units, other_product_ad_units, " +
             "campaign_start_date, campaign_end_date, portfolio_id, campaign_id, created_at) " +
-            "VALUES (#{shopId}, #{shopName}, #{reportTypeCode}, #{reportDate}, #{campaignName}, #{targetingType}, #{campaignStatus}, " +
+            "VALUES (#{shopId}, #{shopName}, #{reportTypeCode}, #{adTypeCode}, #{reportDate}, #{campaignName}, #{targetingType}, #{campaignStatus}, " +
             "#{impressions}, #{clicks}, #{spend}, #{cpc}, #{adSales}, #{advertisedProductSales}, " +
             "#{otherProductAdSales}, #{ctr}, #{conversionRate}, #{acos}, #{roas}, " +
             "#{adOrders}, #{advertisedProductOrders}, #{otherProductAdOrders}, " +
             "#{adUnits}, #{advertisedProductUnits}, #{otherProductAdUnits}, " +
             "#{campaignStartDate}, #{campaignEndDate}, #{portfolioId}, #{campaignId}, CURRENT_TIMESTAMP) " +
-            "ON CONFLICT (shop_id, report_type_code, campaign_name, report_date) DO UPDATE SET " +
+            "ON CONFLICT (shop_id, report_type_code, ad_type_code, campaign_name, report_date) DO UPDATE SET " +
             "shop_name = EXCLUDED.shop_name, targeting_type = EXCLUDED.targeting_type, " +
             "campaign_status = EXCLUDED.campaign_status, impressions = EXCLUDED.impressions, " +
             "clicks = EXCLUDED.clicks, spend = EXCLUDED.spend, cpc = EXCLUDED.cpc, " +

@@ -20,6 +20,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 广告活动数据导入Quartz Job
@@ -83,7 +85,7 @@ public class AdCampaignImportJob implements Job {
                 throw new IOException("获取Access Token失败");
             }
 
-            List<ShopInfo> shops = fetchAllShops();
+            List<ShopInfo> shops = sfImportService.getAllShops();
             if (shops.isEmpty()) {
                 log.warn("未获取到店铺数据，跳过广告活动导入");
                 syncLog.setEndTime(LocalDateTime.now());
@@ -99,25 +101,19 @@ public class AdCampaignImportJob implements Job {
 
             for (String reportTypeCode : reportTypeCodes) {
                 log.info("开始处理报告类型: {} (广告类型: {})", reportTypeCode, adTypeCode);
-                int reportImported = 0;
-                int reportFailCount = 0;
 
-                for (ShopInfo shop : shops) {
-                    try {
-                        int imported = processShop(shop, adTypeCode, reportTypeCode, timeUnit,
-                                reportStartDate, reportEndDate);
-                        reportImported += imported;
-                    } catch (Exception e) {
-                        reportFailCount++;
-                        failCount++;
-                        log.error("处理店铺 {} 报告类型 {} 失败: {}", shop.getName(), reportTypeCode, e.getMessage());
-                    }
+                try {
+                    int imported = processShops(shops, adTypeCode, reportTypeCode, timeUnit,
+                            reportStartDate, reportEndDate);
+                    totalImported += imported;
+                    messageBuilder.append(reportTypeCode)
+                            .append(": 导入").append(imported).append("条; ");
+                } catch (Exception e) {
+                    failCount++;
+                    log.error("处理报告类型 {} 失败: {}", reportTypeCode, e.getMessage());
+                    messageBuilder.append(reportTypeCode)
+                            .append(": 失败 - ").append(e.getMessage()).append("; ");
                 }
-
-                totalImported += reportImported;
-                messageBuilder.append(reportTypeCode)
-                        .append(": 导入").append(reportImported).append("条")
-                        .append(", 失败").append(reportFailCount).append("家店铺; ");
             }
 
             syncLog.setEndTime(LocalDateTime.now());
@@ -141,36 +137,17 @@ public class AdCampaignImportJob implements Job {
         }
     }
 
-    private List<ShopInfo> fetchAllShops() throws IOException {
-        java.util.List<ShopInfo> allShops = new java.util.ArrayList<>();
-        int pageNo = 1;
-        int totalPages = 1;
+    private int processShops(List<ShopInfo> shops, String adTypeCode, String reportTypeCode,
+                              String timeUnit, LocalDate startDate, LocalDate endDate) throws Exception {
+        List<String> shopIds = shops.stream().map(ShopInfo::getId).collect(Collectors.toList());
+        Map<String, String> shopNameToIdMap = shops.stream()
+                .filter(s -> s.getName() != null)
+                .collect(Collectors.toMap(ShopInfo::getName, ShopInfo::getId, (a, b) -> a));
 
-        while (pageNo <= totalPages) {
-            ApiResponse<ShopListResponse> response = apiClient.getShopList(
-                    String.valueOf(pageNo), "200");
-            if (response == null || !response.isSuccess()) {
-                throw new IOException("获取店铺列表失败: " + (response != null ? response.getMsg() : "未知错误"));
-            }
-
-            ShopListResponse data = response.getData();
-            if (data != null && data.getRows() != null) {
-                allShops.addAll(data.getRows());
-                totalPages = data.getTotalPage();
-            }
-
-            pageNo++;
-        }
-
-        return allShops;
-    }
-
-    private int processShop(ShopInfo shop, String adTypeCode, String reportTypeCode,
-                            String timeUnit, LocalDate startDate, LocalDate endDate) throws Exception {
-        log.info("处理店铺: {} (ID: {})", shop.getName(), shop.getId());
+        log.info("一次性处理 {} 个店铺，shopIds: {}", shopIds.size(), shopIds);
 
         CreateTaskRequest request = new CreateTaskRequest();
-        request.setShopIds(List.of(shop.getId()));
+        request.setShopIds(shopIds);
         request.setAdTypeCode(adTypeCode);
         request.setReportTypeCode(reportTypeCode);
         request.setTimeUnit(timeUnit);
@@ -183,7 +160,7 @@ public class AdCampaignImportJob implements Job {
         }
 
         String taskId = response.getData().getId();
-        log.info("报表任务已创建，TaskID: {}", taskId);
+        log.info("报表任务已创建，TaskID: {}, 包含 {} 个店铺", taskId, shopIds.size());
 
         TaskInfo taskInfo = pollTaskUntilComplete(taskId);
         if (taskInfo == null) {
@@ -192,7 +169,7 @@ public class AdCampaignImportJob implements Job {
 
         List<String> downloadUrls = taskInfo.getDownloadUrl();
         if (downloadUrls == null || downloadUrls.isEmpty()) {
-            log.warn("店铺 {} 的报表任务没有下载链接", shop.getName());
+            log.warn("报表任务没有下载链接");
             return 0;
         }
 
@@ -209,7 +186,7 @@ public class AdCampaignImportJob implements Job {
             log.info("报表文件已下载: {}", savePath);
 
             int imported = sfImportService.importAdCampaignReport(
-                    savePath, shop.getId(), reportTypeCode);
+                    savePath, shopNameToIdMap, reportTypeCode, adTypeCode);
             totalImported += imported;
         }
 

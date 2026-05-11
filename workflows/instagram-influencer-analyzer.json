@@ -1,0 +1,166 @@
+{
+  "name": "Instagram Influencer Analyzer",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "d3e4f5a6-0001-4000-8000-000000000001",
+      "name": "手动触发",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 340]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawData = {\n  \"data\": {\n    \"count\": 50,\n    \"items\": [\n      {\n        \"full_name\": \"ضحى\",\n        \"username\": \"home_deco_dm_\",\n        \"is_verified\": false,\n        \"is_private\": false,\n        \"profile_pic_url\": \"https://example.com/pic1.jpg\"\n      },\n      {\n        \"full_name\": \"Sarah Johnson\",\n        \"username\": \"sarahj_lifestyle\",\n        \"is_verified\": true,\n        \"is_private\": false,\n        \"profile_pic_url\": \"https://example.com/pic2.jpg\"\n      },\n      {\n        \"full_name\": \"Mike Chen\",\n        \"username\": \"mikechen_fitness\",\n        \"is_verified\": false,\n        \"is_private\": false,\n        \"profile_pic_url\": \"https://example.com/pic3.jpg\"\n      }\n    ]\n  }\n};\n\nconst items = rawData.data.items;\nreturn items.map(item => ({\n  json: {\n    full_name: item.full_name || \"\",\n    username: item.username || \"\",\n    is_verified: item.is_verified || false,\n    is_private: item.is_private || false,\n    instagram_url: \"https://www.instagram.com/\" + item.username,\n    profile_pic_url: item.profile_pic_url || \"\"\n  }\n}));"
+      },
+      "id": "d3e4f5a6-0001-4000-8000-000000000002",
+      "name": "准备数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 340]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "d3e4f5a6-0001-4000-8000-000000000003",
+      "name": "逐条处理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [680, 340]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=请分析以下Instagram博主：\n\n博主主页URL: {{ $json.instagram_url }}\n博主名称: {{ $json.full_name }}\n用户名: @{{ $json.username }}\n是否认证: {{ $json.is_verified ? \"是\" : \"否\" }}\n是否私密账号: {{ $json.is_private ? \"是\" : \"否\" }}\n\n请访问该博主主页链接获取信息，并进行全面分析。",
+        "options": {
+          "systemMessage": "你是一位专业的Instagram社交媒体分析师。你擅长通过分析博主的公开主页信息来评估其内容方向、受众画像、影响力和商业价值。\n\n请对提供的Instagram博主进行全面分析，输出结构化的分析报告，包含以下维度：\n\n1. **基本信息概览**：博主名称、用户名、账号类型（个人/企业/创作者）\n2. **内容分析**：主要发布内容类型和主题领域、内容风格与调性、发布频率推测、内容质量评估\n3. **受众画像**：目标受众群体特征、受众地域分布推测、受众兴趣标签\n4. **影响力评估**：粉丝量级及增长趋势、互动率估算、影响力等级（S/A/B/C）\n5. **商业价值**：适合合作品牌类型和行业、商业变现方式建议、报价区间参考\n6. **账号特色与差异化**：独特卖点和辨识度、与同领域博主的差异化优势\n7. **优化建议**：内容优化方向、互动提升策略、商业变现优化建议\n\n请用中文输出，格式清晰，内容详实专业。如果无法访问博主页面，请根据用户名、名称等可用信息进行合理推测分析，并注明哪些是基于推测的内容。"
+        }
+      },
+      "id": "d3e4f5a6-0001-4000-8000-000000000005",
+      "name": "AI分析博主",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [900, 340]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {
+          "temperature": 0.7
+        }
+      },
+      "id": "d3e4f5a6-0001-4000-8000-000000000006",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [920, 540],
+      "credentials": {
+        "openAiApi": {
+          "id": "rZpobTg6VEIzmxiO",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nfor (const item of $input.all()) {\n  const analysis = item.json;\n  const original = $('准备数据').item.json;\n  \n  let report = '';\n  if (typeof analysis.output === 'string') {\n    report = analysis.output;\n  } else if (analysis.message && analysis.message.content) {\n    report = analysis.message.content;\n  } else if (analysis.choices && analysis.choices[0] && analysis.choices[0].message) {\n    report = analysis.choices[0].message.content;\n  } else if (typeof analysis.text === 'string') {\n    report = analysis.text;\n  } else if (typeof analysis.content === 'string') {\n    report = analysis.content;\n  } else {\n    report = JSON.stringify(analysis, null, 2);\n  }\n  \n  results.push({\n    json: {\n      username: original.username,\n      full_name: original.full_name,\n      instagram_url: original.instagram_url,\n      is_verified: original.is_verified,\n      is_private: original.is_private,\n      analysis_report: report\n    }\n  });\n}\nreturn results;"
+      },
+      "id": "d3e4f5a6-0001-4000-8000-000000000007",
+      "name": "合并结果",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 340]
+    },
+    {
+      "parameters": {
+        "content": "## Instagram 博主分析工作流\n\n### 使用步骤\n1. 在「准备数据」节点中粘贴你的博主JSON数据\n2. 配置 OpenAI API 凭证（点击OpenAI Chat Model节点 → Credential）\n3. 点击「Execute Workflow」运行\n\n### 工作流说明\n- 逐条处理每个博主，避免API限流\n- AI分析后自动合并原始数据与报告\n\n### 输出\n- username: 博主用户名\n- full_name: 博主名称\n- instagram_url: 博主主页链接\n- analysis_report: AI分析报告",
+        "height": 280,
+        "width": 340
+      },
+      "id": "d3e4f5a6-0001-4000-8000-000000000008",
+      "name": "使用说明",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [240, 80]
+    }
+  ],
+  "connections": {
+    "手动触发": {
+      "main": [
+        [
+          {
+            "node": "准备数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "准备数据": {
+      "main": [
+        [
+          {
+            "node": "逐条处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "逐条处理": {
+      "main": [
+        [],
+        [
+          {
+            "node": "AI分析博主",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI分析博主": {
+      "main": [
+        [
+          {
+            "node": "合并结果",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "合并结果": {
+      "main": [
+        [
+          {
+            "node": "逐条处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI分析博主",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

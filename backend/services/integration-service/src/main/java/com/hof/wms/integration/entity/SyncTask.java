@@ -72,4 +72,6 @@ public class SyncTask {
     public static final String TYPE_SHOP_INFO = "SHOP_INFO";
     /** 同步类型常量：SellFox广告活动导入 */
     public static final String TYPE_AD_CAMPAIGN = "AD_CAMPAIGN";
+    /** 同步类型常量：SellFox广告组合导入 */
+    public static final String TYPE_PORTFOLIO = "PORTFOLIO";
 }
